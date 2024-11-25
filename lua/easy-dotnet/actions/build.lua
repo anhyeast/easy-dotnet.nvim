@@ -1,5 +1,5 @@
 local M = {
-  pending = false
+  pending = false,
 }
 local picker = require("easy-dotnet.picker")
 local parsers = require("easy-dotnet.parsers")
@@ -8,7 +8,6 @@ local csproj_parse = parsers.csproj_parser
 local sln_parse = parsers.sln_parser
 local error_messages = require("easy-dotnet.error-messages")
 local default_manager = require("easy-dotnet.default-manager")
-
 
 local function select_project(solution_file_path, cb, use_default)
   local default = default_manager.check_default_project(solution_file_path, "build")
@@ -23,7 +22,7 @@ local function select_project(solution_file_path, cb, use_default)
     return
   end
   local choices = {
-    { path = solution_file_path, display = "Solution", name = "Solution" }
+    { path = solution_file_path, display = "Solution", name = "Solution" },
   }
 
   for _, project in ipairs(projects) do
@@ -36,16 +35,20 @@ local function select_project(solution_file_path, cb, use_default)
   end, "Build project(s)")
 end
 
-
 local function csproj_fallback(term)
   local csproj_path = csproj_parse.find_project_file()
-  if (csproj_path == nil) then
+  if csproj_path == nil then
     vim.notify(error_messages.no_project_definition_found)
     return
   end
-  picker.picker(nil, { { name = csproj_path, display = csproj_path, path = csproj_path } }, function(i)
-    term(i.path, "build", "")
-  end, "Build project(s)")
+  picker.picker(
+    nil,
+    { { name = csproj_path, display = csproj_path, path = csproj_path } },
+    function(i)
+      term(i.path, "build", "")
+    end,
+    "Build project(s)"
+  )
 end
 
 ---@param term function
@@ -94,9 +97,8 @@ local function populate_quickfix_from_file(filename)
   vim.fn.setqflist(quickfix_list)
 
   -- Open the quickfix window
-  vim.cmd("copen")
+  require("trouble").open({ mode = "quickfix" })
 end
-
 
 ---@param use_default boolean
 ---@param dotnet_args string | nil
@@ -114,12 +116,19 @@ M.build_project_quickfix = function(use_default, dotnet_args)
     if csproj == nil then
       vim.notify(messages.no_project_definition_found)
     end
-    local command = string.format("dotnet build %s /flp:v=q /flp:logfile=%s %s", csproj, logPath, dotnet_args or "")
+    local command = string.format(
+      "dotnet build %s /flp:v=q /flp:logfile=%s %s",
+      csproj,
+      logPath,
+      dotnet_args or ""
+    )
     M.pending = true
     vim.fn.jobstart(command, {
       on_exit = function(_, b, _)
         M.pending = false
         if b == 0 then
+          vim.fn.setqflist({})
+          require("trouble").close({ mode = "quickfix" })
           vim.notify("Built successfully")
         else
           vim.notify("Build failed")
@@ -138,8 +147,12 @@ M.build_project_quickfix = function(use_default, dotnet_args)
     local spinner = require("easy-dotnet.ui-modules.spinner").new()
     spinner:start_spinner("Building")
     M.pending = true
-    local command = string.format("dotnet build %s /flp:v=q /flp:logfile=%s %s", project.path, logPath,
-      dotnet_args or "")
+    local command = string.format(
+      "dotnet build %s /flp:v=q /flp:logfile=%s %s",
+      project.path,
+      logPath,
+      dotnet_args or ""
+    )
     vim.fn.jobstart(command, {
       on_exit = function(_, b, _)
         M.pending = false
@@ -153,7 +166,6 @@ M.build_project_quickfix = function(use_default, dotnet_args)
     })
   end, use_default)
 end
-
 
 M.build_solution = function(term)
   local solutionFilePath = sln_parse.find_solution_file() or csproj_parse.find_project_file()
